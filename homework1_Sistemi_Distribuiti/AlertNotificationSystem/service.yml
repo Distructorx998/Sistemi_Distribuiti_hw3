@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-notification-system
+spec:
+  selector:
+    app: alert-notification-system
+  ports:
+    - protocol: TCP
+      port: 50051  
+      targetPort: 50051
+      nodePort: 30004  # Porta per le metriche Prometheus
+  type: NodePort

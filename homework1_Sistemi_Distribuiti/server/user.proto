@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package user;
+
+// Servizio per i comandi (modifiche dello stato)
+service UserCommandService {
+  rpc RegisterUser (RegisterUserRequest) returns (CommandResponse);
+  rpc UpdateUser (UpdateUserRequest) returns (CommandResponse);
+  rpc DeleteUser (DeleteUserRequest) returns (CommandResponse);
+  rpc UpdateThreshold (UpdateThresholdRequest) returns (CommandResponse);
+  rpc RemoveThreshold (RemoveThresholdRequest) returns (CommandResponse);
+}
+
+// Servizio per le query (recupero dati)
+service UserQueryService {
+  rpc GetAllData (Empty) returns (AllDataResponse);
+  rpc GetLastStockValue (EmailRequest) returns (StockValueResponse);
+  rpc GetAverageStockValue (AverageStockRequest) returns (StockValueResponse);
+}
+
+// Messaggi per i comandi
+message RegisterUserRequest {
+  string email = 1;
+  string ticker = 2;
+  float low_value = 3;
+  float high_value = 4;
+}
+
+message UpdateUserRequest {
+  string email = 1;
+  string ticker = 2;
+  float low_value = 3;
+  float high_value = 4;
+}
+
+message DeleteUserRequest {
+  string email = 1;
+}
+
+message UpdateThresholdRequest {
+  string email = 1;
+  float low_value = 2;
+  float high_value = 3;
+}
+
+message RemoveThresholdRequest {
+  string email = 1;
+  float low_value = 2;
+  float high_value = 3;
+}
+
+message CommandResponse {
+  string message = 1;
+}
+
+// Messaggi per le query
+message Empty {}
+
+message EmailRequest {
+  string email = 1;
+}
+
+message AverageStockRequest {
+  string email = 1;
+  int32 count = 2;
+}
+
+message StockValueResponse {
+  string message = 1;
+  float value = 2;
+}
+
+message AllDataResponse {
+  repeated string data = 1;
+}
