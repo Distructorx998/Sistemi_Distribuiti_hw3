@@ -7,7 +7,8 @@ spec:
     app: datacollector
   ports:
     - protocol: TCP
-      port: 50051
-      targetPort: 50051
-      nodePort: 30051
+      port: 8000
+      targetPort: 8000
+      nodePort: 30080
+      name: metrics-port
   type: NodePort

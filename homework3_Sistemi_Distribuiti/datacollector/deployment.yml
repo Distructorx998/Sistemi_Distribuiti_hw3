@@ -16,7 +16,7 @@ spec:
       - name: datacollector
         image: 98cancro1/datacollector
         ports:
-        - containerPort: 50051
+        - containerPort: 8000  # Porta Prometheus
         env:
         - name: DB_HOST
           value: "db"

@@ -6,8 +6,14 @@ spec:
   selector:
     app: server
   ports:
-    - protocol: TCP
+    - name: command
+      protocol: TCP
       port: 50052
       targetPort: 50052
       nodePort: 30003
+    - name: query
+      protocol: TCP
+      port: 50053
+      targetPort: 50053
+      nodePort: 30004
   type: NodePort

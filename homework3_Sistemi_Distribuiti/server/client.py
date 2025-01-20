@@ -4,16 +4,19 @@ import user_pb2
 import user_pb2_grpc
 
 class StockMonitorClient:
-    def __init__(self, host='localhost', port=30003):
+    def __init__(self, command_host='localhost', command_port=30003, query_host='localhost', query_port=30004):
         """
-        Inizializza il client gRPC con un canale di comunicazione
+        Inizializza il client gRPC con due canali di comunicazione separati per i comandi e le query
         
-        :param host: Indirizzo del server (default: localhost)
-        :param port: Porta del server (default: 50051)
+        :param command_host: Indirizzo del server dei comandi (default: localhost)
+        :param command_port: Porta del server dei comandi (default: 30003)
+        :param query_host: Indirizzo del server delle query (default: localhost)
+        :param query_port: Porta del server delle query (default: 30004)
         """
-        self.channel = grpc.insecure_channel(f'{host}:{port}')
-        self.command_stub = user_pb2_grpc.UserCommandServiceStub(self.channel)
-        self.query_stub = user_pb2_grpc.UserQueryServiceStub(self.channel)
+        self.command_channel = grpc.insecure_channel(f'{command_host}:{command_port}')
+        self.query_channel = grpc.insecure_channel(f'{query_host}:{query_port}')
+        self.command_stub = user_pb2_grpc.UserCommandServiceStub(self.command_channel)
+        self.query_stub = user_pb2_grpc.UserQueryServiceStub(self.query_channel)
 
     def register_user(self, email, ticker, low_value=None, high_value=None):
         """

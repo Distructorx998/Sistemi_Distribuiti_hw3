@@ -4,10 +4,11 @@ import logging
 import json
 from datetime import datetime
 from confluent_kafka import Producer, Consumer, KafkaException
+from prometheus_client import start_http_server, Gauge, Counter
 
 # Configurazione del consumer Kafka
 consumer_config = {
-    'bootstrap.servers': 'kafka:9092',  # Usare il nome del servizio Kubernetes
+    'bootstrap.servers': 'kafka:9092',
     'group.id': 'group1',
     'auto.offset.reset': 'earliest',
     'enable.auto.commit': True,
@@ -19,28 +20,30 @@ producer_config = {
     'bootstrap.servers': 'kafka:9092'
 }
 
-# Istanziazione di consumer e producer
-consumer = Consumer(consumer_config)
-producer = Producer(producer_config)
-
-# Sottoscrizione ai topic
-topic1 = 'to-alert-system'
-topic2 = 'to-notifier'
-
 # Configurazione database MySQL
 db_config = {
-    'host': 'db',  # Nome del servizio Kubernetes per il DB
+    'host': 'db',
     'user': 'user',
     'password': 'password',
     'database': 'users'
 }
 
+# Prometheus metrics
+response_time_gauge = Gauge('response_time_seconds', 'Time taken for DB operations', ['service', 'node'])
+messages_produced = Counter('messages_produced_total', 'Total messages produced to Kafka', ['service', 'node'])
+messages_received = Counter('messages_received_total', 'Total messages received from Kafka', ['service', 'node'])
+db_update_time_gauge = Gauge('db_update_time_seconds', 'Time taken to update the database', ['service', 'node'])
+
+# Etichette statiche
+SERVICE_NAME = "alert-system"
+NODE_NAME = "node1"
+
 # Funzione per produrre messaggi Kafka
 def produce_sync(producer, topic, value):
     try:
         producer.produce(topic, value)
+        messages_produced.labels(service=SERVICE_NAME, node=NODE_NAME).inc()  # Incrementa il contatore
         logging.info(f"Produced message to {topic}: {value}")
-        messages_produced.inc()  # Incrementa il contatore Prometheus
     except Exception as e:
         logging.error(f"Failed to produce message: {e}")
 
@@ -62,23 +65,34 @@ def wait_for_kafka(topic):
 # Ciclo principale
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+
+    # Avvio server Prometheus per le metriche
+    start_http_server(8002)  # Porta per esportare le metriche
+
+    # Istanziazione di consumer e producer
+    consumer = Consumer(consumer_config)
+    producer = Producer(producer_config)
+
     # Verifica Kafka e topic prima di iniziare
-    wait_for_kafka(topic1)
-    
+    wait_for_kafka('to-alert-system')
+
     # Sottoscrizione al topic dopo che Kafka è pronto
-    consumer.subscribe([topic1])
+    consumer.subscribe(['to-alert-system'])
 
     while True:
         try:
+            start_time = time.time()
+
             # Poll per ricevere nuovi messaggi
             msg = consumer.poll(1.0)
             if msg is None:
-                continue  # Nessun messaggio ricevuto
+                continue
             if msg.error():
                 logging.error(f"Consumer error: {msg.error()}")
                 continue
 
             # Parsing del messaggio ricevuto
+            messages_received.labels(service=SERVICE_NAME, node=NODE_NAME).inc()  # Incrementa il contatore
             data = json.loads(msg.value().decode('utf-8'))
             timestamp = data['timestamp']
             messaggio = data['messaggio']
@@ -89,6 +103,7 @@ if __name__ == "__main__":
             cursor = conn.cursor(dictionary=True)
 
             # Query per ottenere utenti e prezzi
+            query_start = time.time()
             query = """
                 SELECT 
                     u.email, 
@@ -107,9 +122,7 @@ if __name__ == "__main__":
             """
             cursor.execute(query)
             users = cursor.fetchall()
-
-            # Log degli utenti trovati
-            logging.info(f"Fetched users with stock values: {users}")
+            db_update_time_gauge.labels(service=SERVICE_NAME, node=NODE_NAME).set(time.time() - query_start)
 
             # Controlla ogni profilo
             for user in users:
@@ -120,32 +133,28 @@ if __name__ == "__main__":
                 ticker = user['ticker']
                 condition = None
 
-                # Verifica le condizioni di superamento soglia e aggiorna il database
                 if low_value is not None and price < low_value:
                     condition = f"below_low ({price} < {low_value})"
-                    logging.info(f"Updating low_value for email: {email}, new low_value: {price}")
                     cursor.execute("UPDATE users SET low_value = %s WHERE email = %s", (price, email))
-                    conn.commit()  # Commit dopo l'aggiornamento
+                    conn.commit()
                 elif high_value is not None and price > high_value:
                     condition = f"above_high ({price} > {high_value})"
-                    logging.info(f"Updating high_value for email: {email}, new high_value: {price}")
                     cursor.execute("UPDATE users SET high_value = %s WHERE email = %s", (price, email))
-                    conn.commit()  # Commit dopo l'aggiornamento
+                    conn.commit()
 
                 if condition:
-                    # Costruisci il messaggio per il topic `to-notifier`
                     notification = {
                         'email': email,
                         'ticker': ticker,
                         'condition': condition
                     }
-                    produce_sync(producer, topic2, json.dumps(notification))
+                    produce_sync(producer, 'to-notifier', json.dumps(notification))
 
-            # Chiudi il cursore e la connessione
+            # Log del tempo totale per il ciclo
+            response_time_gauge.labels(service=SERVICE_NAME, node=NODE_NAME).set(time.time() - start_time)
+
             cursor.close()
             conn.close()
-
-            # Flusha i messaggi accumulati nel producer
             producer.flush()
 
         except mysql.connector.Error as db_err:
@@ -153,7 +162,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"General error: {e}")
         finally:
-            # Garantire che la connessione venga chiusa in caso di errore
             try:
                 if cursor:
                     cursor.close()

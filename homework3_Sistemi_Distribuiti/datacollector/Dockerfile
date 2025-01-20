@@ -4,6 +4,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install mysql-connector-python yfinance circuitbreaker confluent_kafka
+RUN pip install mysql-connector-python yfinance circuitbreaker confluent_kafka prometheus-client
 
 CMD ["python", "datacollector.py"]

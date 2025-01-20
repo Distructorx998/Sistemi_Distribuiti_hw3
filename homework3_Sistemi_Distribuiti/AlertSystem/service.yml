@@ -6,8 +6,9 @@ spec:
   selector:
     app: alert-system
   ports:
-    - protocol: TCP
-      port: 50051  
-      targetPort: 50051
-      nodePort: 30002  # Porta per le metriche Prometheus
+    - name: prometheus  # Nome per la porta Prometheus
+      protocol: TCP
+      port: 8002
+      targetPort: 8002
+      nodePort: 30081  # NodePort per le metriche Prometheus
   type: NodePort

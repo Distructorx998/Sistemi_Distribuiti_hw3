@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: alert-system
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -16,7 +17,8 @@ spec:
       - name: alert-system
         image: 98cancro1/alert_system
         ports:
-        - containerPort: 50051
+        - name: metrics-port
+          containerPort: 8002
         env:
         - name: DB_HOST
           value: "db"

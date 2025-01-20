@@ -5,9 +5,35 @@ import json
 from confluent_kafka import Consumer, KafkaException, KafkaError
 import time
 import logging
+import os
+from prometheus_client import start_http_server, Gauge, Counter
 
 # Configurazione dei log
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Configurazione Prometheus
+REQUEST_COUNT = Counter(
+    'alert_notification_requests_total',
+    'Numero totale di richieste ricevute',
+    ['service', 'node']
+)
+ERROR_COUNT = Counter(
+    'alert_notification_errors_total',
+    'Numero totale di errori durante la gestione delle richieste',
+    ['service', 'node']
+)
+RESPONSE_TIME = Gauge(
+    'alert_notification_response_time_seconds',
+    'Tempo di risposta medio in secondi',
+    ['service', 'node']
+)
+
+# Recupero informazioni di servizio e nodo
+SERVICE_NAME = 'alert-notification-system'
+NODE_NAME = os.getenv('NODE_NAME', 'unknown-node')
+
+# Avvio server Prometheus per le metriche
+start_http_server(8001)  # Porta 8000 esposta per le metriche
 
 # Configurazione del consumer Kafka
 consumer_config = {
@@ -60,6 +86,7 @@ def send_email(to_email, subject, body):
         logging.info(f"Email inviata con successo a {to_email}")
     except Exception as e:
         logging.error(f"Errore durante l'invio dell'email a {to_email}: {e}")
+        ERROR_COUNT.labels(service=SERVICE_NAME, node=NODE_NAME).inc()  # Incrementa errori in caso di fallimento
 
 # Verifica Kafka
 logging.info("Verificando la disponibilità di Kafka...")
@@ -79,6 +106,7 @@ while True:
         continue
     if msg.error():
         logging.error(f"Errore del consumer: {msg.error()}")
+        ERROR_COUNT.labels(service=SERVICE_NAME, node=NODE_NAME).inc()  # Incrementa errori
         continue
 
     try:
@@ -93,6 +121,9 @@ while True:
             logging.warning("Messaggio non valido, mancano campi obbligatori")
             continue
 
+        # Aggiorna contatore delle richieste
+        REQUEST_COUNT.labels(service=SERVICE_NAME, node=NODE_NAME).inc()
+
         # Creazione dei contenuti dell'email
         subject = f"Ticker Alert: {ticker}"
         body = f"La condizione di superamento soglia per il ticker '{ticker}' è stata soddisfatta:\n\n{condition}"
@@ -100,8 +131,13 @@ while True:
         # Invio dell'email
         send_email(email, subject, body)
 
+        # Calcolo del tempo di risposta
+        elapsed_time = time.time() - start_time
+        RESPONSE_TIME.labels(service=SERVICE_NAME, node=NODE_NAME).set(elapsed_time)
+
     except Exception as e:
         logging.error(f"Errore durante l'elaborazione del messaggio: {e}")
+        ERROR_COUNT.labels(service=SERVICE_NAME, node=NODE_NAME).inc()  # Incrementa errori in caso di eccezioni
 
 # Chiudi il consumer quando il processo termina
 consumer.close()

@@ -14,8 +14,8 @@ spec:
         app: server
     spec:
       containers:
-      - name: server
-        image: 98cancro1/server
+      - name: command
+        image: 98cancro1/server_command
         ports:
         - containerPort: 50052
         env:
@@ -23,3 +23,14 @@ spec:
           value: "db"
         - name: DB_PORT
           value: "3306"
+          
+      - name: query
+        image: 98cancro1/server_query
+        ports:
+        - containerPort: 50053
+        env:
+        - name: DB_HOST
+          value: "db"
+        - name: DB_PORT
+          value: "3306"
+          

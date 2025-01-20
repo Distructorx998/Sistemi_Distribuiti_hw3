@@ -7,7 +7,8 @@ spec:
     app: alert-notification-system
   ports:
     - protocol: TCP
-      port: 50051  
-      targetPort: 50051
-      nodePort: 30004  # Porta per le metriche Prometheus
+      port: 8001  # Porta per le metriche Prometheus
+      targetPort: 8001
+      nodePort: 30082  # Porta esterna
+      name: metric-port
   type: NodePort
