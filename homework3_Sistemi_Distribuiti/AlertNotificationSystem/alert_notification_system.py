@@ -52,23 +52,25 @@ SMTP_PASSWORD = 'tlkaetutxjeahlyu'
 topic = 'to-notifier'
 
 # Funzione per verificare la disponibilità di Kafka e del topic
-def wait_for_kafka(bootstrap_servers, topic, timeout=60):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            consumer = Consumer({'bootstrap.servers': bootstrap_servers, 'group.id': 'health-check'})
-            metadata = consumer.list_topics(timeout=5.0)
-            if topic in metadata.topics:
-                logging.info(f"Kafka è pronto e il topic '{topic}' esiste.")
-                consumer.close()
-                return True
-            else:
-                logging.warning(f"Topic '{topic}' non trovato. Riprovo...")
-        except KafkaException as e:
-            logging.error(f"Errore durante la verifica di Kafka: {e}")
-        time.sleep(5)
-    raise RuntimeError(f"Kafka non è pronto o il topic '{topic}' non esiste entro il tempo massimo.")
 
+    # Funzione per verificare la disponibilità di Kafka e del topic con retry incrementale
+def wait_for_kafka(bootstrap_servers, topic, initial_timeout=60, retry_interval=60):
+        start_time = time.time()
+        while True:
+            try:
+                consumer = Consumer({'bootstrap.servers': bootstrap_servers, 'group.id': 'health-check'})
+                metadata = consumer.list_topics(timeout=5.0)
+                if topic in metadata.topics:
+                    logging.info(f"Kafka è pronto e il topic '{topic}' esiste.")
+                    consumer.close()
+                    return True
+                else:
+                    logging.warning(f"Topic '{topic}' non trovato. Riprovo tra {retry_interval} secondi...")
+            except KafkaException as e:
+                logging.error(f"Errore durante la verifica di Kafka: {e}")
+            
+            time.sleep(retry_interval)
+            retry_interval = 60  # Incrementa il tempo di retry a 60 secondi dopo il primo tentativo
 # Funzione per inviare email
 def send_email(to_email, subject, body):
     try:
